@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/set-state-in-effect */
 import React, { useContext, useEffect, useState } from "react";
 import assets from "../assets/assets";
