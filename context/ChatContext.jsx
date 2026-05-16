@@ -56,6 +56,26 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  const updateGroup = async ({ groupId, name, bio, groupPic }) => {
+    try {
+      const { data } = await axios.put(`/api/messages/groups/${groupId}`, { name, bio, groupPic });
+
+      if (data.success) {
+        const group = { ...data.group, isGroup: true };
+        setGroups((prevGroups) => prevGroups.map((item) => item._id === group._id ? group : item));
+        setSelectedUser((currentChat) => currentChat?._id === group._id ? group : currentChat);
+        toast.success("Group updated");
+        return true;
+      }
+
+      toast.error(data.message);
+      return false;
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+      return false;
+    }
+  };
+
   const getMessages = useCallback(async (userId) => {
     try {
       const endpoint = selectedUser?.isGroup ? `/api/messages/groups/${userId}` : `/api/messages/${userId}`;
@@ -135,6 +155,12 @@ export const ChatProvider = ({ children }) => {
       ]);
     };
 
+    const handleGroupUpdated = (group) => {
+      const updatedGroup = { ...group, isGroup: true };
+      setGroups((prevGroups) => prevGroups.map((item) => item._id === group._id ? updatedGroup : item));
+      setSelectedUser((currentChat) => currentChat?._id === group._id ? updatedGroup : currentChat);
+    };
+
     const handleTyping = ({ senderId }) => {
       setTypingUserId(senderId);
     };
@@ -169,6 +195,7 @@ export const ChatProvider = ({ children }) => {
 
     socket.on("newMessage", handleNewMessage);
     socket.on("newGroup", handleNewGroup);
+    socket.on("groupUpdated", handleGroupUpdated);
     socket.on("typing", handleTyping);
     socket.on("stopTyping", handleStopTyping);
     socket.on("groupTyping", handleGroupTyping);
@@ -177,6 +204,7 @@ export const ChatProvider = ({ children }) => {
     return () => {
       socket.off("newMessage", handleNewMessage);
       socket.off("newGroup", handleNewGroup);
+      socket.off("groupUpdated", handleGroupUpdated);
       socket.off("typing", handleTyping);
       socket.off("stopTyping", handleStopTyping);
       socket.off("groupTyping", handleGroupTyping);
@@ -221,6 +249,7 @@ export const ChatProvider = ({ children }) => {
     groupTypingUsers,
     getUsers,
     createGroup,
+    updateGroup,
     getMessages,
     startTyping,
     stopTyping,

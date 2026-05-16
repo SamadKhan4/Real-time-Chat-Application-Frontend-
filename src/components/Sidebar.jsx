@@ -106,9 +106,13 @@ const Sidebar = () => {
               setUnseenMessages((prev) => ({ ...prev, [group._id]: 0 }));
             }}
           >
-            <div className="w-[35px] aspect-[1/1] rounded-full bg-violet-500/70 flex items-center justify-center text-sm font-medium">
-              {group.name.charAt(0).toUpperCase()}
-            </div>
+            {group.groupPic ? (
+              <img src={group.groupPic} alt="" className="w-[35px] aspect-[1/1] rounded-full object-cover" />
+            ) : (
+              <div className="w-[35px] aspect-[1/1] rounded-full bg-violet-500/70 flex items-center justify-center text-sm font-medium">
+                {group.name.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="flex flex-col leading-5">
               <p className="text-sm text-white">{group.name}</p>
               <span className="text-neutral-400 text-xs">{group.members?.length || 0} members</span>
