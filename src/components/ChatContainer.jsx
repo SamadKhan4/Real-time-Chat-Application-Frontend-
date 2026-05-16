@@ -15,6 +15,7 @@ const ChatContainer = ({ onOpenProfile }) => {
     getMessages,
     sendMessage,
     typingUserId,
+    groupTypingUsers,
     startTyping,
     stopTyping,
   } = useContext(ChatContext);
@@ -79,6 +80,10 @@ const ChatContainer = ({ onOpenProfile }) => {
   const getSenderId = (sender) => typeof sender === "object" ? sender?._id : sender;
   const getSenderName = (sender) => sender?.fullName || sender?.fullname || "Group member";
   const isGroupChat = Boolean(selectedUser?.isGroup);
+  const typingNames = Object.values(groupTypingUsers[selectedUser?._id] || {});
+  const groupTypingText = typingNames.length > 1
+    ? `${typingNames.join(", ")} are typing...`
+    : `${typingNames[0]} is typing...`;
 
 
   return selectedUser ? (
@@ -97,7 +102,9 @@ const ChatContainer = ({ onOpenProfile }) => {
               {!isGroupChat && onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
             </span>
             {isGroupChat ? (
-              <span className="text-xs text-neutral-400">{selectedUser.members?.length || 0} members</span>
+              <span className={`text-xs ${typingNames.length ? "text-green-400" : "text-neutral-400"}`}>
+                {typingNames.length ? groupTypingText : `${selectedUser.members?.length || 0} members`}
+              </span>
             ) : (
               typingUserId === selectedUser._id && <span className="text-xs text-green-400">typing...</span>
             )}

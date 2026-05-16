@@ -16,8 +16,9 @@ export const ChatProvider = ({ children }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [unseenMessages, setUnseenMessages] = useState({});
   const [typingUserId, setTypingUserId] = useState(null);
+  const [groupTypingUsers, setGroupTypingUsers] = useState({});
 
-  const { socket, axios } = useContext(AuthContext);
+  const { authUser, socket, axios } = useContext(AuthContext);
 
   const getUsers = useCallback(async () => {
     try {
@@ -102,6 +103,18 @@ export const ChatProvider = ({ children }) => {
       const isSelectedGroupMessage = selectedUser?.isGroup && groupId === selectedChatId;
       const isSelectedUserMessage = selectedUser && !selectedUser.isGroup && senderId === selectedChatId;
 
+      if (groupId) {
+        setGroupTypingUsers((prevTypingUsers) => {
+          const groupTyping = { ...(prevTypingUsers[groupId] || {}) };
+          delete groupTyping[senderId];
+
+          return {
+            ...prevTypingUsers,
+            [groupId]: groupTyping,
+          };
+        });
+      }
+
       if (isSelectedGroupMessage || isSelectedUserMessage) {
         const seenMessage = { ...newMessage, seen: true };
         setMessages((prevMessages) => [...prevMessages, seenMessage]);
@@ -132,27 +145,68 @@ export const ChatProvider = ({ children }) => {
       ));
     };
 
+    const handleGroupTyping = ({ groupId, senderId, senderName }) => {
+      setGroupTypingUsers((prevTypingUsers) => ({
+        ...prevTypingUsers,
+        [groupId]: {
+          ...(prevTypingUsers[groupId] || {}),
+          [senderId]: senderName || "Someone",
+        },
+      }));
+    };
+
+    const handleGroupStopTyping = ({ groupId, senderId }) => {
+      setGroupTypingUsers((prevTypingUsers) => {
+        const groupTyping = { ...(prevTypingUsers[groupId] || {}) };
+        delete groupTyping[senderId];
+
+        return {
+          ...prevTypingUsers,
+          [groupId]: groupTyping,
+        };
+      });
+    };
+
     socket.on("newMessage", handleNewMessage);
     socket.on("newGroup", handleNewGroup);
     socket.on("typing", handleTyping);
     socket.on("stopTyping", handleStopTyping);
+    socket.on("groupTyping", handleGroupTyping);
+    socket.on("groupStopTyping", handleGroupStopTyping);
 
     return () => {
       socket.off("newMessage", handleNewMessage);
       socket.off("newGroup", handleNewGroup);
       socket.off("typing", handleTyping);
       socket.off("stopTyping", handleStopTyping);
+      socket.off("groupTyping", handleGroupTyping);
+      socket.off("groupStopTyping", handleGroupStopTyping);
     };
   }, [axios, socket, selectedUser]);
 
   const startTyping = useCallback(() => {
-    if (socket && selectedUser?._id && !selectedUser.isGroup) {
+    if (!socket || !selectedUser?._id) return;
+
+    if (selectedUser.isGroup) {
+      socket.emit("groupTyping", {
+        groupId: selectedUser._id,
+        members: selectedUser.members?.map((member) => member._id) || [],
+        senderName: authUser?.fullName || authUser?.fullname || "Someone",
+      });
+    } else {
       socket.emit("typing", { receiverId: selectedUser._id });
     }
-  }, [socket, selectedUser]);
+  }, [authUser, socket, selectedUser]);
 
   const stopTyping = useCallback(() => {
-    if (socket && selectedUser?._id && !selectedUser.isGroup) {
+    if (!socket || !selectedUser?._id) return;
+
+    if (selectedUser.isGroup) {
+      socket.emit("groupStopTyping", {
+        groupId: selectedUser._id,
+        members: selectedUser.members?.map((member) => member._id) || [],
+      });
+    } else {
       socket.emit("stopTyping", { receiverId: selectedUser._id });
     }
   }, [socket, selectedUser]);
@@ -164,6 +218,7 @@ export const ChatProvider = ({ children }) => {
     selectedUser,
     unseenMessages,
     typingUserId,
+    groupTypingUsers,
     getUsers,
     createGroup,
     getMessages,
