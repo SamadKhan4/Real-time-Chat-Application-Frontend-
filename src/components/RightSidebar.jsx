@@ -24,14 +24,33 @@ const RightSidebar = ({ isOpen, onClose }) => {
         x
       </button>
       <div className="pt-6 pb-4 flex flex-col items-center gap-2 text-xs font-light mx-auto">
-        <img src={selectedUser?.profilePic || assets.avatar_icon} alt="" className="w-20 aspect-[1/1] rounded-full" />
+        <img src={selectedUser?.isGroup ? assets.avatar_icon : selectedUser?.profilePic || assets.avatar_icon} alt="" className="w-20 aspect-[1/1] rounded-full" />
         <h1 className="px-10 text-[15px] font-medium mx-auto flex items-center gap-3">
-          {onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
-          {selectedUser.fullName}
+          {!selectedUser.isGroup && onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
+          {selectedUser.isGroup ? selectedUser.name : selectedUser.fullName}
         </h1>
-        <p className="px-1 mx-auto">{selectedUser.bio}</p>
+        <p className="px-1 mx-auto">
+          {selectedUser.isGroup ? `${selectedUser.members?.length || 0} members` : selectedUser.bio}
+        </p>
       </div>
       <hr className="border-[#ffffff50] my-2" />
+
+      {selectedUser.isGroup && (
+        <div className="px-5 text-xs">
+          <p>Members</p>
+          <div className="mt-4 flex flex-col gap-3">
+            {selectedUser.members?.map((member) => (
+              <div key={member._id} className="flex items-center gap-3">
+                <img src={member.profilePic || assets.avatar_icon} alt="" className="w-8 aspect-square rounded-full" />
+                <div>
+                  <p className="text-sm">{member.fullName || member.fullname}</p>
+                  <p className="text-neutral-400">{onlineUsers.includes(member._id) ? "Online" : "offline"}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="px-5 text-xs">
         <p>Media</p>

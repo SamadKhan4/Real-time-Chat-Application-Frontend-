@@ -74,7 +74,11 @@ const ChatContainer = ({ onOpenProfile }) => {
     e.target.value = ""
   }
   reader.readAsDataURL(file)
- }
+  }
+
+  const getSenderId = (sender) => typeof sender === "object" ? sender?._id : sender;
+  const getSenderName = (sender) => sender?.fullName || sender?.fullname || "Group member";
+  const isGroupChat = Boolean(selectedUser?.isGroup);
 
 
   return selectedUser ? (
@@ -82,17 +86,21 @@ const ChatContainer = ({ onOpenProfile }) => {
       <div className="flex items-center gap-3 py-3 mx-4 border-b border-stone-500">
         <img
           onClick={onOpenProfile}
-          src={selectedUser.profilePic || assets.avatar_icon}
+          src={isGroupChat ? assets.avatar_icon : selectedUser.profilePic || assets.avatar_icon}
           alt=""
           className="w-8 aspect-square rounded-full cursor-pointer"
         />
         <p onClick={onOpenProfile} className="flex-1 text-lg text-white flex items-center gap-2 cursor-pointer">
           <span className="flex flex-col leading-5">
             <span className="flex items-center gap-2">
-              {selectedUser.fullName}
-              {onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
+              {isGroupChat ? selectedUser.name : selectedUser.fullName}
+              {!isGroupChat && onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
             </span>
-            {typingUserId === selectedUser._id && <span className="text-xs text-green-400">typing...</span>}
+            {isGroupChat ? (
+              <span className="text-xs text-neutral-400">{selectedUser.members?.length || 0} members</span>
+            ) : (
+              typingUserId === selectedUser._id && <span className="text-xs text-green-400">typing...</span>
+            )}
           </span>
         </p>
         <img onClick={() => setSelectedUser(null)} src={assets.arrow_icon} alt="" className="md:hidden max-w-7" />
@@ -101,19 +109,24 @@ const ChatContainer = ({ onOpenProfile }) => {
 
       <div className="flex flex-col h-[calc(100%-120px)] overflow-y-scroll p-3 pb-6">
         {messages.map((msg) => {
-          const isOwnMessage = msg.senderId === authUser?._id;
+          const isOwnMessage = getSenderId(msg.senderId) === authUser?._id;
+          const senderProfilePic = typeof msg.senderId === "object" ? msg.senderId.profilePic : selectedUser.profilePic;
 
           return (
             <div key={msg._id} className={`flex items-end gap-2 justify-end ${!isOwnMessage ? "flex-row-reverse" : ""}`}>
               {msg.image ? (
-                <img src={msg.image} alt="" className="max-w-[230px] border border-gray-700 rounded-lg overflow-hidden mb-8" />
+                <div className="mb-8">
+                  {isGroupChat && !isOwnMessage && <p className="mb-1 text-xs text-violet-200">{getSenderName(msg.senderId)}</p>}
+                  <img src={msg.image} alt="" className="max-w-[230px] border border-gray-700 rounded-lg overflow-hidden" />
+                </div>
               ) : (
-                <p className={`p-2 max-w-[200px] md:text-sm font-light rounded-lg mb-8 break-all bg-violet-500/30 text-white ${isOwnMessage ? "rounded-br-none" : "rounded-bl-none"}`}>
-                  {msg.text}
-                </p>
+                <div className={`p-2 max-w-[220px] md:text-sm font-light rounded-lg mb-8 break-all bg-violet-500/30 text-white ${isOwnMessage ? "rounded-br-none" : "rounded-bl-none"}`}>
+                  {isGroupChat && !isOwnMessage && <p className="mb-1 text-xs font-medium text-violet-200">{getSenderName(msg.senderId)}</p>}
+                  <p>{msg.text}</p>
+                </div>
               )}
               <div className="text-center text-xs">
-                <img src={isOwnMessage ? assets.avatar_icon : selectedUser.profilePic || assets.avatar_icon} alt="" className="w-7 aspect-square rounded-full" />
+                <img src={isOwnMessage ? authUser?.profilePic || assets.avatar_icon : senderProfilePic || assets.avatar_icon} alt="" className="w-7 aspect-square rounded-full" />
                 <p className="text-gray-500">{formatMessageTime(msg.createdAt)}</p>
               </div>
             </div>

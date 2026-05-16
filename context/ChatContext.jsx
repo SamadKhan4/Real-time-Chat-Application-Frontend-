@@ -12,6 +12,7 @@ const normalizeUser = (user) => ({
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [unseenMessages, setUnseenMessages] = useState({});
   const [typingUserId, setTypingUserId] = useState(null);
@@ -24,6 +25,7 @@ export const ChatProvider = ({ children }) => {
 
       if (data.success) {
         setUsers(data.users.map(normalizeUser));
+        setGroups((data.groups || []).map((group) => ({ ...group, isGroup: true })));
         setUnseenMessages(data.unseenMessages);
       } else {
         toast.error(data.message);
@@ -33,9 +35,30 @@ export const ChatProvider = ({ children }) => {
     }
   }, [axios]);
 
+  const createGroup = async ({ name, memberIds }) => {
+    try {
+      const { data } = await axios.post("/api/messages/groups", { name, memberIds });
+
+      if (data.success) {
+        const group = { ...data.group, isGroup: true };
+        setGroups((prevGroups) => [group, ...prevGroups.filter((item) => item._id !== group._id)]);
+        setSelectedUser(group);
+        toast.success("Group created");
+        return true;
+      }
+
+      toast.error(data.message);
+      return false;
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+      return false;
+    }
+  };
+
   const getMessages = useCallback(async (userId) => {
     try {
-      const { data } = await axios.get(`/api/messages/${userId}`);
+      const endpoint = selectedUser?.isGroup ? `/api/messages/groups/${userId}` : `/api/messages/${userId}`;
+      const { data } = await axios.get(endpoint);
 
       if (data.success) {
         setMessages(data.messages);
@@ -45,16 +68,19 @@ export const ChatProvider = ({ children }) => {
     } catch (error) {
       toast.error(error.response?.data?.message || error.message);
     }
-  }, [axios]);
+  }, [axios, selectedUser]);
 
   const sendMessage = async (messageData) => {
     if (!selectedUser?._id) {
-      toast.error("Select a user first");
+      toast.error("Select a chat first");
       return;
     }
 
     try {
-      const { data } = await axios.post(`/api/messages/send/${selectedUser._id}`, messageData);
+      const endpoint = selectedUser.isGroup
+        ? `/api/messages/send-group/${selectedUser._id}`
+        : `/api/messages/send/${selectedUser._id}`;
+      const { data } = await axios.post(endpoint, messageData);
 
       if (data.success) {
         setMessages((prevMessages) => [...prevMessages, data.newMessage]);
@@ -70,16 +96,30 @@ export const ChatProvider = ({ children }) => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
-      if (selectedUser && newMessage.senderId === selectedUser._id) {
+      const senderId = typeof newMessage.senderId === "object" ? newMessage.senderId._id : newMessage.senderId;
+      const groupId = newMessage.groupId?.toString();
+      const selectedChatId = selectedUser?._id?.toString();
+      const isSelectedGroupMessage = selectedUser?.isGroup && groupId === selectedChatId;
+      const isSelectedUserMessage = selectedUser && !selectedUser.isGroup && senderId === selectedChatId;
+
+      if (isSelectedGroupMessage || isSelectedUserMessage) {
         const seenMessage = { ...newMessage, seen: true };
         setMessages((prevMessages) => [...prevMessages, seenMessage]);
-        axios.put(`/api/messages/mark/${newMessage._id}`);
+        if (!groupId) axios.put(`/api/messages/mark/${newMessage._id}`);
       } else {
+        const unseenKey = groupId || senderId;
         setUnseenMessages((prevUnseenMessages) => ({
           ...prevUnseenMessages,
-          [newMessage.senderId]: (prevUnseenMessages[newMessage.senderId] || 0) + 1,
+          [unseenKey]: (prevUnseenMessages[unseenKey] || 0) + 1,
         }));
       }
+    };
+
+    const handleNewGroup = (group) => {
+      setGroups((prevGroups) => [
+        { ...group, isGroup: true },
+        ...prevGroups.filter((item) => item._id !== group._id),
+      ]);
     };
 
     const handleTyping = ({ senderId }) => {
@@ -93,24 +133,26 @@ export const ChatProvider = ({ children }) => {
     };
 
     socket.on("newMessage", handleNewMessage);
+    socket.on("newGroup", handleNewGroup);
     socket.on("typing", handleTyping);
     socket.on("stopTyping", handleStopTyping);
 
     return () => {
       socket.off("newMessage", handleNewMessage);
+      socket.off("newGroup", handleNewGroup);
       socket.off("typing", handleTyping);
       socket.off("stopTyping", handleStopTyping);
     };
   }, [axios, socket, selectedUser]);
 
   const startTyping = useCallback(() => {
-    if (socket && selectedUser?._id) {
+    if (socket && selectedUser?._id && !selectedUser.isGroup) {
       socket.emit("typing", { receiverId: selectedUser._id });
     }
   }, [socket, selectedUser]);
 
   const stopTyping = useCallback(() => {
-    if (socket && selectedUser?._id) {
+    if (socket && selectedUser?._id && !selectedUser.isGroup) {
       socket.emit("stopTyping", { receiverId: selectedUser._id });
     }
   }, [socket, selectedUser]);
@@ -118,10 +160,12 @@ export const ChatProvider = ({ children }) => {
   const value = {
     messages,
     users,
+    groups,
     selectedUser,
     unseenMessages,
     typingUserId,
     getUsers,
+    createGroup,
     getMessages,
     startTyping,
     stopTyping,
