@@ -8,6 +8,7 @@ const LoginPage = () => {
   const [fullName , setFullName] = useState("")
   const [email , setEmail] = useState("")
   const [password , setPassword] = useState("")
+  const [showPassword , setShowPassword] = useState(false)
   const [bio , setBio] = useState("")
   const [isDataSubmitted ,setIsDataSubmitted] = useState(false) ;
   
@@ -44,8 +45,27 @@ const LoginPage = () => {
           <>
           <input onChange={(e) => setEmail(e.target.value)} value={email}
            type="email" placeholder='Email Address'  required className='p-2 border border-grey-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'/>
-           <input onChange={(e) => setPassword(e.target.value)} value={password}
-           type="password" placeholder='Password..'  required className='p-2 border border-grey-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'/>
+           <div className='relative'>
+            <input onChange={(e) => setPassword(e.target.value)} value={password}
+            type={showPassword ? "text" : "password"} placeholder='Password..'  required className='w-full p-2 pr-10 border border-grey-500 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500'/>
+            <button
+              type='button'
+              onClick={() => setShowPassword((prev) => !prev)}
+              className='absolute inset-y-0 right-3 flex items-center text-white/70 hover:text-white'
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className='w-5 h-5' fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.6A2 2 0 0012 14a2 2 0 001.4-.6M9.9 4.2A10.7 10.7 0 0112 4c5 0 8.5 4.1 9.7 6a2 2 0 010 2c-.5.8-1.4 1.9-2.6 2.9M6.4 6.4A16.2 16.2 0 002.3 10a2 2 0 000 2c1.2 1.9 4.7 6 9.7 6 1.3 0 2.5-.3 3.6-.8" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className='w-5 h-5' fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.3 10a2 2 0 000 2c1.2 1.9 4.7 6 9.7 6s8.5-4.1 9.7-6a2 2 0 000-2c-1.2-1.9-4.7-6-9.7-6S3.5 8.1 2.3 10z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 14a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+              )}
+            </button>
+           </div>
           </>
          )}
 
