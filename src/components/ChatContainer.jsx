@@ -6,11 +6,21 @@ import { AuthContext } from "../../context/AuthContext.jsx";
 import { ChatContext } from "../../context/ChatContext.jsx";
 import toast from "react-hot-toast";
 
-const ChatContainer = () => {
+const ChatContainer = ({ onOpenProfile }) => {
   const { authUser , onlineUsers } = useContext(AuthContext);
-  const { messages, selectedUser, setSelectedUser, getMessages, sendMessage } = useContext(ChatContext);
+  const {
+    messages,
+    selectedUser,
+    setSelectedUser,
+    getMessages,
+    sendMessage,
+    typingUserId,
+    startTyping,
+    stopTyping,
+  } = useContext(ChatContext);
   const [input, setInput] = useState("");
   const scrollEnd = useRef();
+  const typingTimeout = useRef(null);
 
   useEffect(() => {
     if (selectedUser?._id) {
@@ -29,9 +39,28 @@ const ChatContainer = () => {
 
     if (!input.trim()) return;
 
+    stopTyping();
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
     await sendMessage({ text: input.trim() });
     setInput("");
   };
+
+  const handleInputChange = (event) => {
+    setInput(event.target.value);
+    startTyping();
+
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+    typingTimeout.current = setTimeout(() => {
+      stopTyping();
+    }, 1200);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeout.current) clearTimeout(typingTimeout.current);
+      stopTyping();
+    };
+  }, [stopTyping]);
  const handleSendImage = async (e) =>{
   const file = e.target.files?.[0];
   if(!file || !file.type.startsWith("image/")){
@@ -51,10 +80,20 @@ const ChatContainer = () => {
   return selectedUser ? (
     <div className="h-full overflow-hidden relative backdrop-blur-lg">
       <div className="flex items-center gap-3 py-3 mx-4 border-b border-stone-500">
-        <img src={selectedUser.profilePic || assets.avatar_icon} alt="" className="w-8 aspect-square rounded-full" />
-        <p className="flex-1 text-lg text-white flex items-center gap-2">
-          {selectedUser.fullName}
-          {onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
+        <img
+          onClick={onOpenProfile}
+          src={selectedUser.profilePic || assets.avatar_icon}
+          alt=""
+          className="w-8 aspect-square rounded-full cursor-pointer"
+        />
+        <p onClick={onOpenProfile} className="flex-1 text-lg text-white flex items-center gap-2 cursor-pointer">
+          <span className="flex flex-col leading-5">
+            <span className="flex items-center gap-2">
+              {selectedUser.fullName}
+              {onlineUsers.includes(selectedUser._id) && <span className="w-2 h-2 rounded-full bg-green-500"></span>}
+            </span>
+            {typingUserId === selectedUser._id && <span className="text-xs text-green-400">typing...</span>}
+          </span>
         </p>
         <img onClick={() => setSelectedUser(null)} src={assets.arrow_icon} alt="" className="md:hidden max-w-7" />
         <img src={assets.help_icon} alt="" className="max-md:hidden max-w-5" />
@@ -88,7 +127,7 @@ const ChatContainer = () => {
           <input
             type="text"
             value={input}
-            onChange={(event) => setInput(event.target.value)}
+            onChange={handleInputChange}
             onKeyDown={(e)=> e.key === "Enter" ? handleSendMessage(e) : null }
             placeholder="Send a message"
             className="flex-1 text-sm p-3 border-none rounded-lg outline-none text-white placeholder-gray-400 bg-transparent"

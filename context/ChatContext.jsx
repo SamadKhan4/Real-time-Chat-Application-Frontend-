@@ -14,6 +14,7 @@ export const ChatProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [unseenMessages, setUnseenMessages] = useState({});
+  const [typingUserId, setTypingUserId] = useState(null);
 
   const { socket, axios } = useContext(AuthContext);
 
@@ -81,20 +82,49 @@ export const ChatProvider = ({ children }) => {
       }
     };
 
+    const handleTyping = ({ senderId }) => {
+      setTypingUserId(senderId);
+    };
+
+    const handleStopTyping = ({ senderId }) => {
+      setTypingUserId((currentTypingUserId) => (
+        currentTypingUserId === senderId ? null : currentTypingUserId
+      ));
+    };
+
     socket.on("newMessage", handleNewMessage);
+    socket.on("typing", handleTyping);
+    socket.on("stopTyping", handleStopTyping);
 
     return () => {
       socket.off("newMessage", handleNewMessage);
+      socket.off("typing", handleTyping);
+      socket.off("stopTyping", handleStopTyping);
     };
   }, [axios, socket, selectedUser]);
+
+  const startTyping = useCallback(() => {
+    if (socket && selectedUser?._id) {
+      socket.emit("typing", { receiverId: selectedUser._id });
+    }
+  }, [socket, selectedUser]);
+
+  const stopTyping = useCallback(() => {
+    if (socket && selectedUser?._id) {
+      socket.emit("stopTyping", { receiverId: selectedUser._id });
+    }
+  }, [socket, selectedUser]);
 
   const value = {
     messages,
     users,
     selectedUser,
     unseenMessages,
+    typingUserId,
     getUsers,
     getMessages,
+    startTyping,
+    stopTyping,
     setMessages,
     sendMessage,
     setSelectedUser,
