@@ -5,6 +5,7 @@ import { formatMessageTime } from "../lib/utils";
 import { AuthContext } from "../../context/AuthContext.jsx";
 import { ChatContext } from "../../context/ChatContext.jsx";
 import toast from "react-hot-toast";
+import TicTacToeGame from "./TicTacToeGame.jsx";
 
 const ChatContainer = ({ onOpenProfile }) => {
   const { authUser , onlineUsers } = useContext(AuthContext);
@@ -16,11 +17,18 @@ const ChatContainer = ({ onOpenProfile }) => {
     sendMessage,
     typingUserId,
     groupTypingUsers,
+    gameStates,
+    createTicTacToeInvite,
+    joinGame,
+    makeGameMove,
+    restartGame,
     startTyping,
     stopTyping,
   } = useContext(ChatContext);
   const [input, setInput] = useState("");
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const scrollEnd = useRef();
+  const imageInputRef = useRef(null);
   const typingTimeout = useRef(null);
 
   useEffect(() => {
@@ -73,9 +81,15 @@ const ChatContainer = ({ onOpenProfile }) => {
   reader.onloadend = async ()=>{
     await sendMessage({image: reader.result})
     e.target.value = ""
+    setShowAttachmentMenu(false);
   }
   reader.readAsDataURL(file)
   }
+
+  const handleStartGame = async () => {
+    await createTicTacToeInvite();
+    setShowAttachmentMenu(false);
+  };
 
   const getSenderId = (sender) => typeof sender === "object" ? sender?._id : sender;
   const getSenderName = (sender) => sender?.fullName || sender?.fullname || "Group member";
@@ -121,7 +135,20 @@ const ChatContainer = ({ onOpenProfile }) => {
 
           return (
             <div key={msg._id} className={`flex items-end gap-2 justify-end ${!isOwnMessage ? "flex-row-reverse" : ""}`}>
-              {msg.image ? (
+              {msg.game?.type === "tic-tac-toe" ? (
+                <div className="mb-8">
+                  {isGroupChat && !isOwnMessage && <p className="mb-1 text-xs text-violet-200">{getSenderName(msg.senderId)}</p>}
+                  <TicTacToeGame
+                    authUser={authUser}
+                    game={msg.game}
+                    gameState={gameStates[msg.game.gameId]}
+                    isOwnMessage={isOwnMessage}
+                    onJoin={joinGame}
+                    onMove={makeGameMove}
+                    onRestart={restartGame}
+                  />
+                </div>
+              ) : msg.image ? (
                 <div className="mb-8">
                   {isGroupChat && !isOwnMessage && <p className="mb-1 text-xs text-violet-200">{getSenderName(msg.senderId)}</p>}
                   <img src={msg.image} alt="" className="max-w-[230px] border border-gray-700 rounded-lg overflow-hidden" />
@@ -144,6 +171,37 @@ const ChatContainer = ({ onOpenProfile }) => {
 
       <form onSubmit={handleSendMessage} className="absolute bottom-0 left-0 right-0 flex items-center gap-3 p-3">
         <div className="flex-1 flex items-center bg-gray-100/12 px-3 rounded-full">
+          <div className="relative">
+            {showAttachmentMenu && (
+              <div className="absolute bottom-12 left-0 z-20 w-44 overflow-hidden rounded-2xl border border-white/10 bg-[#14101f] p-2 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-white transition hover:bg-white/10"
+                >
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-violet-500/20">IMG</span>
+                  Images
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartGame}
+                  disabled={isGroupChat}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                  title={isGroupChat ? "Games are available in one-to-one chats for now" : "Start Tic Tac Toe"}
+                >
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500/20">XO</span>
+                  Games
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAttachmentMenu((value) => !value)}
+              className="mr-2 grid h-8 w-8 place-items-center rounded-full bg-violet-500/25 text-xl leading-none text-white transition hover:bg-violet-500/35"
+            >
+              +
+            </button>
+          </div>
           <input
             type="text"
             value={input}
@@ -152,10 +210,7 @@ const ChatContainer = ({ onOpenProfile }) => {
             placeholder="Send a message"
             className="flex-1 text-sm p-3 border-none rounded-lg outline-none text-white placeholder-gray-400 bg-transparent"
           />
-          <input onChange={handleSendImage} type="file" id="image" accept="image/png, image/jpeg" hidden />
-          <label htmlFor="image">
-            <img src={assets.gallery_icon} alt="" className="w-5 mr-2 cursor-pointer" />
-          </label>
+          <input ref={imageInputRef} onChange={handleSendImage} type="file" id="image" accept="image/png, image/jpeg" hidden />
         </div>
         <button type="submit">
           <img src={assets.send_button} alt="" className="w-7 cursor-pointer" />

@@ -15,6 +15,10 @@ const normalizeContactRequest = (request) => ({
   recipient: request.recipient ? normalizeUser(request.recipient) : request.recipient,
 });
 
+const createLocalId = () => (
+  crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
+);
+
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
@@ -25,6 +29,7 @@ export const ChatProvider = ({ children }) => {
   const [unseenMessages, setUnseenMessages] = useState({});
   const [typingUserId, setTypingUserId] = useState(null);
   const [groupTypingUsers, setGroupTypingUsers] = useState({});
+  const [gameStates, setGameStates] = useState({});
 
   const { authUser, socket, axios } = useContext(AuthContext);
 
@@ -185,6 +190,36 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  const createTicTacToeInvite = async () => {
+    if (!selectedUser?._id) {
+      toast.error("Select a chat first");
+      return;
+    }
+
+    if (selectedUser.isGroup) {
+      toast.error("Games are available in one-to-one chats for now");
+      return;
+    }
+
+    const gameId = createLocalId();
+    const game = {
+      type: "tic-tac-toe",
+      gameId,
+      players: {
+        x: authUser._id,
+        o: selectedUser._id,
+      },
+      status: "invited",
+    };
+
+    await sendMessage({
+      text: "Let's play Tic Tac Toe",
+      game,
+    });
+
+    socket?.emit("game:join", { gameId, players: game.players });
+  };
+
   useEffect(() => {
     if (!socket) return;
 
@@ -292,6 +327,13 @@ export const ChatProvider = ({ children }) => {
       });
     };
 
+    const handleGameState = ({ gameId, state }) => {
+      setGameStates((prevStates) => ({
+        ...prevStates,
+        [gameId]: state,
+      }));
+    };
+
     socket.on("newMessage", handleNewMessage);
     socket.on("newGroup", handleNewGroup);
     socket.on("groupUpdated", handleGroupUpdated);
@@ -302,6 +344,7 @@ export const ChatProvider = ({ children }) => {
     socket.on("stopTyping", handleStopTyping);
     socket.on("groupTyping", handleGroupTyping);
     socket.on("groupStopTyping", handleGroupStopTyping);
+    socket.on("game:state", handleGameState);
 
     return () => {
       socket.off("newMessage", handleNewMessage);
@@ -314,6 +357,7 @@ export const ChatProvider = ({ children }) => {
       socket.off("stopTyping", handleStopTyping);
       socket.off("groupTyping", handleGroupTyping);
       socket.off("groupStopTyping", handleGroupStopTyping);
+      socket.off("game:state", handleGameState);
     };
   }, [axios, socket, selectedUser]);
 
@@ -344,6 +388,27 @@ export const ChatProvider = ({ children }) => {
     }
   }, [socket, selectedUser]);
 
+  const joinGame = useCallback((game) => {
+    if (!socket || !game?.gameId || !game?.players) return;
+
+    socket.emit("game:join", {
+      gameId: game.gameId,
+      players: game.players,
+    });
+  }, [socket]);
+
+  const makeGameMove = useCallback((gameId, index) => {
+    if (!socket || !gameId) return;
+
+    socket.emit("game:move", { gameId, index });
+  }, [socket]);
+
+  const restartGame = useCallback((gameId) => {
+    if (!socket || !gameId) return;
+
+    socket.emit("game:restart", { gameId });
+  }, [socket]);
+
   const value = {
     messages,
     users,
@@ -354,6 +419,7 @@ export const ChatProvider = ({ children }) => {
     unseenMessages,
     typingUserId,
     groupTypingUsers,
+    gameStates,
     getUsers,
     getContactRequests,
     sendContactRequest,
@@ -361,6 +427,10 @@ export const ChatProvider = ({ children }) => {
     createGroup,
     updateGroup,
     getMessages,
+    createTicTacToeInvite,
+    joinGame,
+    makeGameMove,
+    restartGame,
     startTyping,
     stopTyping,
     setMessages,
