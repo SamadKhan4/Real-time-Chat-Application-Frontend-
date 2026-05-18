@@ -30,6 +30,7 @@ export const ChatProvider = ({ children }) => {
   const [typingUserId, setTypingUserId] = useState(null);
   const [groupTypingUsers, setGroupTypingUsers] = useState({});
   const [gameStates, setGameStates] = useState({});
+  const [codeSpaceStates, setCodeSpaceStates] = useState({});
 
   const { authUser, socket, axios } = useContext(AuthContext);
 
@@ -220,6 +221,37 @@ export const ChatProvider = ({ children }) => {
     socket?.emit("game:join", { gameId, players: game.players });
   };
 
+  const createCodeSpaceInvite = async () => {
+    if (!selectedUser?._id) {
+      toast.error("Select a chat first");
+      return;
+    }
+
+    if (selectedUser.isGroup) {
+      toast.error("Code Space is available in one-to-one chats for now");
+      return;
+    }
+
+    const codeSpaceId = createLocalId();
+    const codeSpace = {
+      codeSpaceId,
+      language: "javascript",
+      participants: [authUser._id, selectedUser._id],
+      status: "invited",
+    };
+
+    await sendMessage({
+      text: "Join my live Code Space",
+      codeSpace,
+    });
+
+    socket?.emit("code:join", {
+      codeSpaceId,
+      participants: codeSpace.participants,
+      language: codeSpace.language,
+    });
+  };
+
   useEffect(() => {
     if (!socket) return;
 
@@ -334,6 +366,13 @@ export const ChatProvider = ({ children }) => {
       }));
     };
 
+    const handleCodeState = ({ codeSpaceId, state }) => {
+      setCodeSpaceStates((prevStates) => ({
+        ...prevStates,
+        [codeSpaceId]: state,
+      }));
+    };
+
     socket.on("newMessage", handleNewMessage);
     socket.on("newGroup", handleNewGroup);
     socket.on("groupUpdated", handleGroupUpdated);
@@ -345,6 +384,7 @@ export const ChatProvider = ({ children }) => {
     socket.on("groupTyping", handleGroupTyping);
     socket.on("groupStopTyping", handleGroupStopTyping);
     socket.on("game:state", handleGameState);
+    socket.on("code:state", handleCodeState);
 
     return () => {
       socket.off("newMessage", handleNewMessage);
@@ -358,6 +398,7 @@ export const ChatProvider = ({ children }) => {
       socket.off("groupTyping", handleGroupTyping);
       socket.off("groupStopTyping", handleGroupStopTyping);
       socket.off("game:state", handleGameState);
+      socket.off("code:state", handleCodeState);
     };
   }, [axios, socket, selectedUser]);
 
@@ -409,6 +450,39 @@ export const ChatProvider = ({ children }) => {
     socket.emit("game:restart", { gameId });
   }, [socket]);
 
+  const joinCodeSpace = useCallback((codeSpace) => {
+    if (!socket || !codeSpace?.codeSpaceId) return;
+
+    socket.emit("code:join", {
+      codeSpaceId: codeSpace.codeSpaceId,
+      participants: codeSpace.participants || [],
+      language: codeSpace.language || "javascript",
+    });
+  }, [socket]);
+
+  const updateCodeSpace = useCallback(({ codeSpaceId, content, language }) => {
+    if (!socket || !codeSpaceId) return;
+
+    setCodeSpaceStates((prevStates) => ({
+      ...prevStates,
+      [codeSpaceId]: {
+        ...(prevStates[codeSpaceId] || {}),
+        content,
+        language,
+        updatedBy: authUser?._id,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+
+    socket.emit("code:update", { codeSpaceId, content, language });
+  }, [authUser?._id, socket]);
+
+  const updateCodeSpaceLanguage = useCallback(({ codeSpaceId, language }) => {
+    if (!socket || !codeSpaceId || !language) return;
+
+    socket.emit("code:language", { codeSpaceId, language });
+  }, [socket]);
+
   const value = {
     messages,
     users,
@@ -420,6 +494,7 @@ export const ChatProvider = ({ children }) => {
     typingUserId,
     groupTypingUsers,
     gameStates,
+    codeSpaceStates,
     getUsers,
     getContactRequests,
     sendContactRequest,
@@ -428,9 +503,13 @@ export const ChatProvider = ({ children }) => {
     updateGroup,
     getMessages,
     createTicTacToeInvite,
+    createCodeSpaceInvite,
     joinGame,
     makeGameMove,
     restartGame,
+    joinCodeSpace,
+    updateCodeSpace,
+    updateCodeSpaceLanguage,
     startTyping,
     stopTyping,
     setMessages,

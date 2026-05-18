@@ -6,6 +6,7 @@ import { AuthContext } from "../../context/AuthContext.jsx";
 import { ChatContext } from "../../context/ChatContext.jsx";
 import toast from "react-hot-toast";
 import TicTacToeGame from "./TicTacToeGame.jsx";
+import CodeSpace from "./CodeSpace.jsx";
 
 const ChatContainer = ({ onOpenProfile }) => {
   const { authUser , onlineUsers } = useContext(AuthContext);
@@ -18,10 +19,15 @@ const ChatContainer = ({ onOpenProfile }) => {
     typingUserId,
     groupTypingUsers,
     gameStates,
+    codeSpaceStates,
     createTicTacToeInvite,
+    createCodeSpaceInvite,
     joinGame,
     makeGameMove,
     restartGame,
+    joinCodeSpace,
+    updateCodeSpace,
+    updateCodeSpaceLanguage,
     startTyping,
     stopTyping,
   } = useContext(ChatContext);
@@ -91,6 +97,11 @@ const ChatContainer = ({ onOpenProfile }) => {
     setShowAttachmentMenu(false);
   };
 
+  const handleStartCodeSpace = async () => {
+    await createCodeSpaceInvite();
+    setShowAttachmentMenu(false);
+  };
+
   const getSenderId = (sender) => typeof sender === "object" ? sender?._id : sender;
   const getSenderName = (sender) => sender?.fullName || sender?.fullname || "Group member";
   const isGroupChat = Boolean(selectedUser?.isGroup);
@@ -135,7 +146,20 @@ const ChatContainer = ({ onOpenProfile }) => {
 
           return (
             <div key={msg._id} className={`flex items-end gap-2 justify-end ${!isOwnMessage ? "flex-row-reverse" : ""}`}>
-              {msg.game?.type === "tic-tac-toe" ? (
+              {msg.codeSpace?.codeSpaceId ? (
+                <div className="mb-8">
+                  {isGroupChat && !isOwnMessage && <p className="mb-1 text-xs text-violet-200">{getSenderName(msg.senderId)}</p>}
+                  <CodeSpace
+                    authUser={authUser}
+                    codeSpace={msg.codeSpace}
+                    codeState={codeSpaceStates[msg.codeSpace.codeSpaceId]}
+                    isOwnMessage={isOwnMessage}
+                    onJoin={joinCodeSpace}
+                    onUpdate={updateCodeSpace}
+                    onLanguageChange={updateCodeSpaceLanguage}
+                  />
+                </div>
+              ) : msg.game?.type === "tic-tac-toe" ? (
                 <div className="mb-8">
                   {isGroupChat && !isOwnMessage && <p className="mb-1 text-xs text-violet-200">{getSenderName(msg.senderId)}</p>}
                   <TicTacToeGame
@@ -191,6 +215,16 @@ const ChatContainer = ({ onOpenProfile }) => {
                 >
                   <span className="grid h-8 w-8 place-items-center rounded-full bg-emerald-500/20">XO</span>
                   Games
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartCodeSpace}
+                  disabled={isGroupChat}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                  title={isGroupChat ? "Code Space is available in one-to-one chats for now" : "Start Code Space"}
+                >
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-cyan-500/20">{"</>"}</span>
+                  Code Space
                 </button>
               </div>
             )}
