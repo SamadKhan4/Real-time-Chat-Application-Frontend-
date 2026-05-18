@@ -37,6 +37,14 @@ export const AuthProvider = ({ children }) => {
     socketRef.current = newSocket;
     setSocket(newSocket);
 
+    newSocket.on("connect", () => {
+      console.log("socket connected", newSocket.id);
+    });
+
+    newSocket.on("connect_error", (error) => {
+      console.log("socket connect error", error.message);
+    });
+
     newSocket.on("getOnlineUsers", (userIds) => {
       setOnlineUsers(userIds);
     });
