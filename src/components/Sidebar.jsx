@@ -6,12 +6,26 @@ import { AuthContext } from "../../context/AuthContext.jsx";
 import { ChatContext } from "../../context/ChatContext.jsx";
 
 const Sidebar = () => {
-  const { createGroup, getUsers, groups, users, selectedUser, setSelectedUser, unseenMessages, setUnseenMessages } = useContext(ChatContext);
+  const {
+    createGroup,
+    getContactRequests,
+    getUsers,
+    groups,
+    sendContactRequest,
+    selectedUser,
+    setSelectedUser,
+    setUnseenMessages,
+    unseenMessages,
+    users,
+  } = useContext(ChatContext);
   const { logout, onlineUsers } = useContext(AuthContext);
   
   const [input , setInput] = useState("");
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [contactEmail, setContactEmail] = useState("");
   const [groupName, setGroupName] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const navigate = useNavigate();
@@ -20,7 +34,8 @@ const Sidebar = () => {
 
   useEffect(() => {
     getUsers();
-  }, [getUsers]);
+    getContactRequests();
+  }, [getContactRequests, getUsers]);
 
   const toggleMember = (userId) => {
     setSelectedMemberIds((prevIds) => (
@@ -41,43 +56,94 @@ const Sidebar = () => {
     }
   };
 
+  const handleOpenNewChat = () => {
+    setIsActionMenuOpen(false);
+    setIsNewChatModalOpen(true);
+  };
+
+  const handleOpenCreateGroup = () => {
+    setIsActionMenuOpen(false);
+    setIsGroupModalOpen(true);
+  };
+
+  const handleSendContactRequest = async (event) => {
+    event.preventDefault();
+
+    const sent = await sendContactRequest(contactEmail.trim());
+    if (sent) {
+      setContactEmail("");
+      setIsNewChatModalOpen(false);
+    }
+  };
+
   return (
     <div className={`bg-[#8185B2]/10 h-full p-5 rounded-r-xl overflow-y-scroll text-white ${selectedUser ? "max-md:hidden" : ""}`}>
       <div className="pb-5">
         <div className="flex justify-between items-center">
           <img src={assets.logo} alt="Logo" className="max-w-40" />
-          <div className="relative py-2">
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen((prev) => !prev)}
-              className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/15 cursor-pointer"
-              aria-label="Open menu"
-            >
-              <img src={assets.menu_icon} alt="" className="max-h-5" />
-            </button>
-            {isMenuOpen && (
-            <div className="absolute top-full right-0 z-20 w-32 p-5 rounded-md bg-[#282142] border border-gray-600">
-              <p
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  navigate("/profile");
-                }}
-                className="cursor-pointer text-sm"
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsActionMenuOpen((prev) => !prev)}
+                className="h-8 w-8 flex items-center justify-center rounded-full bg-violet-600/80 text-lg leading-none hover:bg-violet-600 active:bg-violet-700 cursor-pointer"
+                aria-label="Create chat or group"
+                title="Create chat or group"
               >
-                Edit Profile
-              </p>
-              <hr className="my-2 border-t border-grey-500" />
-              <p
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  logout();
-                }}
-                className="cursor-pointer text-sm"
-              >
-                Logout
-              </p>
+                +
+              </button>
+              {isActionMenuOpen && (
+                <div className="absolute top-full right-0 z-20 mt-2 w-36 rounded-md border border-gray-600 bg-[#282142] p-2 shadow-xl">
+                  <button
+                    type="button"
+                    onClick={handleOpenNewChat}
+                    className="w-full rounded px-3 py-2 text-left text-sm hover:bg-white/10"
+                  >
+                    New Chat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateGroup}
+                    className="w-full rounded px-3 py-2 text-left text-sm hover:bg-white/10"
+                  >
+                    Create Group
+                  </button>
+                </div>
+              )}
             </div>
-            )}
+            <div className="relative py-2">
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen((prev) => !prev)}
+                className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-white/10 active:bg-white/15 cursor-pointer"
+                aria-label="Open menu"
+              >
+                <img src={assets.menu_icon} alt="" className="max-h-5" />
+              </button>
+              {isMenuOpen && (
+              <div className="absolute top-full right-0 z-20 w-32 p-5 rounded-md bg-[#282142] border border-gray-600">
+                <p
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    navigate("/profile");
+                  }}
+                  className="cursor-pointer text-sm"
+                >
+                  Edit Profile
+                </p>
+                <hr className="my-2 border-t border-grey-500" />
+                <p
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    logout();
+                  }}
+                  className="cursor-pointer text-sm"
+                >
+                  Logout
+                </p>
+              </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -86,13 +152,6 @@ const Sidebar = () => {
           <input onChange={(e) =>setInput(e.target.value)} 
           type="text" className="bg-transparent border-none outline-none text-white text-xs placeholder-[#c8c8c8]" placeholder="Search user..." />
         </div>
-        <button
-          type="button"
-          onClick={() => setIsGroupModalOpen(true)}
-          className="mt-3 w-full py-2 rounded-full bg-violet-600/80 hover:bg-violet-600 text-sm cursor-pointer"
-        >
-          + Create Group
-        </button>
       </div>
 
       <div className="flex flex-col">
@@ -126,6 +185,12 @@ const Sidebar = () => {
         ))}
 
         {filteredUsers.length > 0 && <p className="px-4 py-2 text-xs uppercase text-gray-400">People</p>}
+        {filteredUsers.length === 0 && filteredGroups.length === 0 && (
+          <div className="mx-2 mt-6 rounded-lg border border-dashed border-gray-600 p-4 text-center">
+            <p className="text-sm text-white">No chats yet</p>
+            <p className="mt-1 text-xs text-neutral-400">Use the + button to start a new chat.</p>
+          </div>
+        )}
         {filteredUsers.map((user) => (
           <div
             key={user._id}
@@ -152,6 +217,41 @@ const Sidebar = () => {
           </div>
         ))}
       </div>
+
+      {isNewChatModalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
+          <form onSubmit={handleSendContactRequest} className="w-full max-w-sm rounded-lg border border-gray-600 bg-[#1f1834] p-5 shadow-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-medium">New Chat</h2>
+                <p className="mt-1 text-xs text-neutral-400">Enter user email to send a chat request.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewChatModalOpen(false)}
+                className="h-8 w-8 rounded-full bg-white/10 cursor-pointer"
+                aria-label="Close new chat form"
+              >
+                x
+              </button>
+            </div>
+            <input
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              type="email"
+              className="mt-4 w-full rounded-md border border-gray-600 bg-transparent p-2 outline-none focus:ring-2 focus:ring-violet-500"
+              placeholder="friend@example.com"
+              required
+            />
+            <button
+              type="submit"
+              className="mt-5 w-full rounded-md bg-gradient-to-r from-purple-400 to-violet-600 py-2 text-sm cursor-pointer"
+            >
+              Send Request
+            </button>
+          </form>
+        </div>
+      )}
 
       {isGroupModalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">

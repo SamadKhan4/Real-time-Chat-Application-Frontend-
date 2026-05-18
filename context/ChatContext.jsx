@@ -9,10 +9,18 @@ const normalizeUser = (user) => ({
   fullName: user.fullName || user.fullname,
 });
 
+const normalizeContactRequest = (request) => ({
+  ...request,
+  requester: request.requester ? normalizeUser(request.requester) : request.requester,
+  recipient: request.recipient ? normalizeUser(request.recipient) : request.recipient,
+});
+
 export const ChatProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [contactRequests, setContactRequests] = useState([]);
+  const [outgoingContactRequests, setOutgoingContactRequests] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [unseenMessages, setUnseenMessages] = useState({});
   const [typingUserId, setTypingUserId] = useState(null);
@@ -28,6 +36,7 @@ export const ChatProvider = ({ children }) => {
         setUsers(data.users.map(normalizeUser));
         setGroups((data.groups || []).map((group) => ({ ...group, isGroup: true })));
         setUnseenMessages(data.unseenMessages);
+        setContactRequests((data.contactRequests || []).map(normalizeContactRequest));
       } else {
         toast.error(data.message);
       }
@@ -35,6 +44,69 @@ export const ChatProvider = ({ children }) => {
       toast.error(error.response?.data?.message || error.message);
     }
   }, [axios]);
+
+  const getContactRequests = useCallback(async () => {
+    try {
+      const { data } = await axios.get("/api/messages/contact-requests");
+
+      if (data.success) {
+        setContactRequests((data.incoming || []).map(normalizeContactRequest));
+        setOutgoingContactRequests((data.outgoing || []).map(normalizeContactRequest));
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+    }
+  }, [axios]);
+
+  const sendContactRequest = async (email) => {
+    try {
+      const { data } = await axios.post("/api/messages/contact-requests", { email });
+
+      if (data.success) {
+        setOutgoingContactRequests((prevRequests) => [
+          normalizeContactRequest(data.contactRequest),
+          ...prevRequests.filter((request) => request._id !== data.contactRequest._id),
+        ]);
+        toast.success(data.message || "Contact request sent");
+        return true;
+      }
+
+      toast.error(data.message);
+      return false;
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+      return false;
+    }
+  };
+
+  const respondToContactRequest = async (requestId, action) => {
+    try {
+      const { data } = await axios.put(`/api/messages/contact-requests/${requestId}`, { action });
+
+      if (data.success) {
+        setContactRequests((prevRequests) => prevRequests.filter((request) => request._id !== requestId));
+
+        if (action === "accept" && data.user) {
+          const acceptedUser = normalizeUser(data.user);
+          setUsers((prevUsers) => [
+            acceptedUser,
+            ...prevUsers.filter((user) => user._id !== acceptedUser._id),
+          ]);
+        }
+
+        toast.success(data.message);
+        return true;
+      }
+
+      toast.error(data.message);
+      return false;
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+      return false;
+    }
+  };
 
   const createGroup = async ({ name, memberIds }) => {
     try {
@@ -161,6 +233,33 @@ export const ChatProvider = ({ children }) => {
       setSelectedUser((currentChat) => currentChat?._id === group._id ? updatedGroup : currentChat);
     };
 
+    const handleNewContactRequest = (request) => {
+      const normalizedRequest = normalizeContactRequest(request);
+      setContactRequests((prevRequests) => [
+        normalizedRequest,
+        ...prevRequests.filter((item) => item._id !== normalizedRequest._id),
+      ]);
+      toast.success(`${normalizedRequest.requester?.fullName || "Someone"} sent you a chat request`);
+    };
+
+    const handleContactRequestAccepted = ({ requestId, user }) => {
+      setOutgoingContactRequests((prevRequests) => prevRequests.filter((request) => request._id !== requestId));
+
+      if (user) {
+        const acceptedUser = normalizeUser(user);
+        setUsers((prevUsers) => [
+          acceptedUser,
+          ...prevUsers.filter((item) => item._id !== acceptedUser._id),
+        ]);
+        toast.success(`${acceptedUser.fullName} accepted your chat request`);
+      }
+    };
+
+    const handleContactRequestDeclined = ({ requestId }) => {
+      setOutgoingContactRequests((prevRequests) => prevRequests.filter((request) => request._id !== requestId));
+      toast.error("Chat request declined");
+    };
+
     const handleTyping = ({ senderId }) => {
       setTypingUserId(senderId);
     };
@@ -196,6 +295,9 @@ export const ChatProvider = ({ children }) => {
     socket.on("newMessage", handleNewMessage);
     socket.on("newGroup", handleNewGroup);
     socket.on("groupUpdated", handleGroupUpdated);
+    socket.on("contactRequest:new", handleNewContactRequest);
+    socket.on("contactRequest:accepted", handleContactRequestAccepted);
+    socket.on("contactRequest:declined", handleContactRequestDeclined);
     socket.on("typing", handleTyping);
     socket.on("stopTyping", handleStopTyping);
     socket.on("groupTyping", handleGroupTyping);
@@ -205,6 +307,9 @@ export const ChatProvider = ({ children }) => {
       socket.off("newMessage", handleNewMessage);
       socket.off("newGroup", handleNewGroup);
       socket.off("groupUpdated", handleGroupUpdated);
+      socket.off("contactRequest:new", handleNewContactRequest);
+      socket.off("contactRequest:accepted", handleContactRequestAccepted);
+      socket.off("contactRequest:declined", handleContactRequestDeclined);
       socket.off("typing", handleTyping);
       socket.off("stopTyping", handleStopTyping);
       socket.off("groupTyping", handleGroupTyping);
@@ -243,11 +348,16 @@ export const ChatProvider = ({ children }) => {
     messages,
     users,
     groups,
+    contactRequests,
+    outgoingContactRequests,
     selectedUser,
     unseenMessages,
     typingUserId,
     groupTypingUsers,
     getUsers,
+    getContactRequests,
+    sendContactRequest,
+    respondToContactRequest,
     createGroup,
     updateGroup,
     getMessages,
